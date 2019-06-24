@@ -74,7 +74,7 @@ object adts {
   final case object Two extends SizeTwo
 
   //Arbitraty proofs can also be done
-  def optEither[A]:Iso[Option[A],Either[A,Unit]]=???
+  def optEither[A]:Iso[Option[A],Either[A,Unit]] = ???
 
   //Think about the sizes involved
   def arbitraryProof: Iso[Either[Either[Unit, Boolean], Either[Unit, Size]], Either[SizeTwo, Either[Boolean, Size]]] = Iso(
