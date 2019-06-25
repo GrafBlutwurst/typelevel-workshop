@@ -22,7 +22,7 @@ object adts {
   // Write a function that adds two TimeSpan values together
 
   // List all values of the type `Unit`
-  def allValuesUnit: Set[Unit] = ???
+  def allValuesUnit: Set[Unit] = Set( () ) 
 
   // List all values of the type `Nothing`
   def allValuesNothing: Set[Nothing] = ???
@@ -56,7 +56,7 @@ object adts {
   }
 
   //think about what the Size of `A` is and what the size of `(A,Unit)` is. What does this mean?
-  def tupleUnit[A]:Iso[A,(A,Unit)] = ???
+  def tupleUnit[X]:Iso[X,(X,Unit)] = Iso( (x:X) => (x, () ))(tpl => tpl._1)
   //the same as above. Compare and contrast with how we saw `Either[A,B]` and `(A,B)` behave in terms of resulting size and the size of `Nothing` and `Unit`
   def eitherNothing[A]:Iso[A,Either[A,Nothing]] = ???
 

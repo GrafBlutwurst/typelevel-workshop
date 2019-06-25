@@ -26,9 +26,15 @@ object typeclasses {
     def show(a: String): String = a
   }
 
-  implicit def showChessPiece: Show[ChessPiece] = ???
+  implicit def showChessPiece: Show[ChessPiece] = cp => cp.toString
 
-  implicit def showOption[A: Show]: Show[Option[A]] = ???
+  implicit def showOption[A: Show]: Show[Option[A]] = opt => opt.fold("None")(x => Show[A].show(x))
+
+  implicit def showTpl[A: Show, B: Show]: Show[(A,B)] = tpl => s"(${tpl._1.show},${tpl._2.show})"
+
+
+  implicit def showList[A :Show]:Show[List[A]] = lst => lst.map(Show[A].show).mkString("[",",","]")
+
 
 
 
@@ -39,6 +45,8 @@ object typeclasses {
     def eqv(x: A, y: A): Boolean
     def ===(x: A)(y: A): Boolean = eqv(x, y)
   }
+
+  implicit def eqAll[A]:Eq[A] = (a1, a2) => a1 == a2
 
   implicit def eqInt: Eq[Int] = new Eq[Int] {
     def eqv(x: Int, y: Int): Boolean = x == y
@@ -51,6 +59,8 @@ object typeclasses {
   implicit def eqOption[A: Eq]: Eq[Option[A]] = ???
 
   implicit def eqEither[A: Eq, B: Eq]: Eq[Either[A, B]] = ???
+
+
 
 
 
@@ -71,7 +81,10 @@ object typeclasses {
     def combine(x: Int, y: Int): Int = x + y
   }
 
-  implicit def stringMonoid: Monoid[String] = ???
+  implicit def stringMonoid: Monoid[String] = new Monoid[String]{
+    def empty: String = ""
+    def combine(x: String, y: String): String = x + y
+  }
 
   implicit def timespanMonoid: Monoid[TimeSpan] = ???
 
@@ -84,18 +97,33 @@ object typeclasses {
 
   implicit def multMonoid: Monoid[Mult] = ???
 
-  def combineAll[A: Monoid](list: List[A]): A = ???
+  def combineAll[A: Monoid](list: List[A]): A = foldMap(list)(identity)
 
-  def foldMap[A, B: Monoid](list: List[A])(f: A => B): B = ???
+  def foldMap[A, B: Monoid](list: List[A])(f: A => B): B = list.foldRight(Monoid[B].empty)( (a,b) => Monoid[B].combine(f(a),b))
 
   implicit def tupleMonoid[A: Monoid, B: Monoid]: Monoid[(A, B)] = ???
 
   implicit def tuple3Monoid[A: Monoid, B: Monoid, C: Monoid]: Monoid[(A, B, C)] = ???
 
-  implicit def mapMonoid[A, B: Monoid]: Monoid[Map[A, B]] = ???
+  implicit def mapMonoid[A, B: Monoid]: Monoid[Map[A, B]] = new Monoid[Map[A,B]] {
+    def empty: Map[A,B] = Map.empty[A,B]
 
-  implicit def futureMonoid[A: Monoid]: Monoid[Future[A]] = ???
+    def combine(x: Map[A,B], y: Map[A,B]): Map[A,B] = x.toList.foldRight(y)(
+      (elem, map) => map + (elem._1 -> map.get(elem._1).fold(elem._2)(elem._2 |+| _ ))
+    )
+  }
 
+  implicit def futureMonoid[A: Monoid]: Monoid[Future[A]] = new Monoid[ Future[A]] {
+    def empty: Future[A] = Future.successful(Monoid[A].empty)
+
+    /*def combine(x: Future[A], y: Future[A]): Future[A] = for {
+      a <- x
+      b <- y
+    } yield a |+| b*/
+
+    def combine(x: Future[A], y: Future[A]): Future[A] = x.zip(y).map( tpl => tpl._1 |+| tpl._2)
+
+  }
 
   //Monoid word count
   //Use foldMap with a Monoid to count the number of words, the number of characters and the number of occurences of each word
@@ -104,14 +132,33 @@ object typeclasses {
   val words: List[String] = rawText.split(" ").toList
 
 
+  val wc = foldMap(words)(w => (1, w.length, Map(w -> 1)))
+
 
 
 
 
   //Now that you have the word count let's extend it with the ability to get the longest word of the text.
   //Tip: Define a Maximum Monoid to do so
+  final case class MaxLenSimple(s:String)
 
+  implicit def mlsMonoid = new Monoid[MaxLenSimple] {
+    def empty: MaxLenSimple = MaxLenSimple("")
 
+    def combine(x: MaxLenSimple, y: MaxLenSimple): MaxLenSimple = if (x.s.length() < y.s.length()) y else x
+  }
+
+  final case class MaxLen(i:Int, s:Set[String])
+
+  implicit def mlMonoid = new Monoid[MaxLen] {
+    def empty: MaxLen = MaxLen(0, Set.empty[String])
+
+    def combine(x: MaxLen, y: MaxLen): MaxLen = (x.i - y.i) match {
+      case diff if diff > 0  => x
+      case diff if diff < 0  => y
+      case diff if diff == 0 => MaxLen(x.i, x.s union y.s)
+    }
+  }
 
 
 
@@ -122,7 +169,7 @@ object typeclasses {
   @typeclass trait Functor[F[_]] {
     def map[A, B](fa: F[A])(f: A => B): F[B]
     //you can implement fmap directly here in the trait. It is just very handy to build an intuition about "Functors move functions into an effect"
-    def fmap[A,B](f: A => B):F[A] => F[B] = ???
+    def fmap[A,B](f: A => B):F[A] => F[B] = fa => map(fa)(f)
   }
 
   implicit def optionFunctor: Functor[Option] = ???
