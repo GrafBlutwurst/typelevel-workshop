@@ -34,7 +34,7 @@ lazy val root = (project in file("."))
       import workshop.typeclasses._
       import workshop.abstractions._
       import workshop.model._
-      import workshop.monoids._
+      //import workshop.monoids._
     """
 
 

@@ -88,7 +88,11 @@ object typeclasses {
 
   implicit def timespanMonoid: Monoid[TimeSpan] = ???
 
-  implicit def listMonoid[A]: Monoid[List[A]] = ???
+  implicit def listMonoid[A]: Monoid[List[A]] = new Monoid[List[A]] {
+    def empty: List[A] = Nil
+
+    def combine(x: List[A], y: List[A]): List[A] = x ::: y
+  }
 
   // The intMonoid further up uses `addition` as its method of combination, but that is not the only monoid for `Int`!
   // We can also define one for multiplication, though if we just define it for `Int` again the compiler won't know which to pick
@@ -132,7 +136,7 @@ object typeclasses {
   val words: List[String] = rawText.split(" ").toList
 
 
-  val wc = foldMap(words)(w => (1, w.length, Map(w -> 1)))
+//  val wc = foldMap(words)(w => (1, w.length, Map(w -> 1)))
 
 
 
@@ -166,23 +170,66 @@ object typeclasses {
 
   //Functor
 
-  @typeclass trait Functor[F[_]] {
+  @typeclass trait Functor[F[_]] { self => 
     def map[A, B](fa: F[A])(f: A => B): F[B]
     //you can implement fmap directly here in the trait. It is just very handy to build an intuition about "Functors move functions into an effect"
     def fmap[A,B](f: A => B):F[A] => F[B] = fa => map(fa)(f)
+    
+    def compose[G[_]:Functor]:Functor[λ[X => F[G[X]]]] = new Functor[λ[X => F[G[X]]]]{
+      def map[A, B](fa: F[G[A]])(f: A => B): F[G[B]] = self.map(fa)( ga => Functor[G].map(ga)(f))
+    }
   }
 
-  implicit def optionFunctor: Functor[Option] = ???
+  implicit def optionFunctor: Functor[Option] = new Functor[Option] {
+    def map[A, B](fa: Option[A])(f: A => B): Option[B] = fa.map(f)
+  }
 
-  implicit def listFunctor: Functor[List] = ???
+  implicit def listFunctor: Functor[List] = new Functor[List] {
+    def map[A, B](fa: List[A])(f: A => B): List[B] = fa.foldRight(List.empty[B])( (a, bs) => f(a) :: bs)
+  }
 
+
+  val functor = Functor[List].compose[Option].compose[List].compose[Option].compose[List]
+
+  val value = List( Some( List( Some( List(1) ) ) ) )
+
+  value.map(
+    a => a.map(
+      b => b.map(
+        c => c.map(
+          d => d.map(
+            x => x + 1
+          )
+        )
+      )
+    )
+  )
+
+  functor.map(value)(_ + 1 )
+
+
+  val x = Functor[List].compose[Option].map(List(Some(3), Some(4), None))(_ + 1)
+
+  List(Some(3), Some(4), None).map(
+    opt => opt.map(
+      i => i + 1 
+    )
+  )
 
 
   sealed trait Tree[+A]
   case class Branch[A](left: Tree[A], right: Tree[A]) extends Tree[A]
   case class Leaf[A](value: A) extends Tree[A]
 
+  object Tree {
+    def leaf[A](a:A):Tree[A] = Leaf(a)
+  }
+
   implicit def treeFunctor: Functor[Tree] = ???
+
+
+
+
 
 
 

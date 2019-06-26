@@ -25,6 +25,7 @@ object monoids {
       map(sum(x, y))(_.merge)
   }
 
+
   // Category
 
   @typeclass trait Category[F[_, _]] {
@@ -98,7 +99,9 @@ object monoids {
 
   implicit def profunctorEffectFunction: Profunctor[EffectFunction] = ???
 
-  implicit def profunctorOptionFunction: Profunctor[OptionFunction] = ???
+  implicit def profunctorOptionFunction: Profunctor[OptionFunction] = new Profunctor[OptionFunction] {
+    def dimap[A, B, C, D](fac: OptionFunction[B,C])(f: A => B)(g: C => D): OptionFunction[A,D] = OptionFunction( a => fac.apply(f(a)).map(g))
+  }
 
 
 
@@ -155,8 +158,10 @@ object monoids {
 
   // Monad
 
-  @typeclass trait Monad[F[_]] extends Monoidal[F] {
+  @typeclass trait Monad[F[_]] extends Monoidal[F] { self => 
     def flatMap[A, B](fa: /* Unit => */ F[A])(f: A => F[B]): /* Unit => */ F[B]
+
+    
 
     def flatten[A](ffa: F[F[A]]): F[A] = flatMap(ffa)(identity)
 
@@ -167,14 +172,26 @@ object monoids {
       flatMap(fa)(a => pure(f(a)))
   }
 
-  implicit def monadOption: Monad[Option] = ???
+  implicit def monadOption: Monad[Option] = new Monad[Option] {
+    def unit: Option[Unit] = Option(())
+
+    def flatMap[A, B](fa: Option[A])(f: A => Option[B]): Option[B] = fa match {
+      case Some(a) => f(a)
+      case None => None
+    }
+      //fa.fold(Option.empty[B])(f)
+  }
 
   implicit def monadTask: Monad[Task] = ???
 
-  implicit def monadEither[E]: Monad[Either[E, ?]] = ???
+  implicit def monadEither[E]: Monad[Either[E, ?]] = new Monad[Either[E, ?]] {
+    def unit: Either[E,Unit] = Right(())
+
+    def flatMap[A, B](fa: Either[E,A])(f: A => Either[E,B]): Either[E,B] = fa.fold(e => Left(e), f)
+  }
 
 
-  def composeMonadFunctions[F[_]: Monad, A, B, C](x: A => F[B], y: B => F[C]): A => F[C] = ???
+  def composeMonadFunctions[F[_]: Monad, A, B, C](x: A => F[B], y: B => F[C]): A => F[C] = a => x(a).flatMap(y)
 
 
 
@@ -182,19 +199,25 @@ object monoids {
 
   case class Kleisli[F[_], A, B](apply: A => F[B])
 
-  implicit def categoryKleisli[F[_]: Monad]: Category[Kleisli[F, ?, ?]] = ???
+  implicit def categoryKleisli[F[_]: Monad]: Category[Kleisli[F, ?, ?]] = new Category[Kleisli[F, ?, ?]] {
+    def identity[A]: Kleisli[F,A,A] = Kleisli(Monad[F].pure)
 
-  implicit def profunctorKleisli[F[_]: Monad]: Profunctor[Kleisli[F, ?, ?]] = ???
+    def compose[A, B, C](fab: Kleisli[F,A,B], fbc: Kleisli[F,B,C]): Kleisli[F,A,C] = Kleisli(composeMonadFunctions(fab.apply, fbc.apply))
+  }
+
+  implicit def profunctorKleisli[F[_]: Monad]: Profunctor[Kleisli[F, ?, ?]] = new Profunctor[Kleisli[F, ?, ?]] {
+    def dimap[A, B, C, D](fac: Kleisli[F,B,C])(f: A => B)(g: C => D): Kleisli[F,A,D] = Kleisli(a => fac.apply(f(a)).map(g))
+  }
 
 
   // Now that we have Kleisli, go back and redefine OptionFunction and FailFunction as a special case of Kleisli
 
-
-
   // IO
 
+
+
   case class IO[A](unsafeRun: () => A) {
-    def map[B](f: A => B): IO[B] = ???
+    def map[B](f: A => B): IO[B] = IO( () => ??? )
   }
 
   implicit def monadIO: Monad[IO] = new Monad[IO] {
